@@ -1,0 +1,123 @@
+function getPriceAuction() {
+
+    if (jQuery('.auction-price').length < 1) {
+        return;
+    }
+
+    if (running == true) {
+        return;
+    }
+
+    // var auction_ids={};
+    // jQuery(".auction-price").each(function(){
+
+    //     	var auction_id = jQuery(this).data('auction-id');
+    //     	var auction_bid = jQuery(this).data('bid');
+    //     	var auction_status= jQuery(this).data('status');
+    // 		auction_ids [auction_id]= {'price': auction_bid , 'status': auction_status};
+
+    // });
+
+    // if(jQuery.isEmptyObject(auction_ids)){
+    // 	return;
+    // }
+
+    running = true;
+
+    var ajaxurl = saajaxurl + '=get_price_for_auctions';
+
+    jQuery.ajax({
+
+        type: "post",
+        encoding: "UTF-8",
+        url: ajaxurl,
+        dataType: 'json',
+        data: {action: "get_price_for_auctions", "last_activity": SA_last_activity},
+        success: function (response) {
+
+            if (response != null) {
+                if (typeof response.last_activity != 'undefined') {
+                    SA_last_activity = response.last_activity;
+                }
+                jQuery.each(response, function (key, value) {
+
+                    first_bid = response.auction_data.first_bid_required;
+
+                    auction = jQuery("body").find(".auction-price[data-auction-id='" + key + "']");
+                    auction.replaceWith(value.curent_bid);
+                    if (!first_bid) {
+                        jQuery("body").find("[data-auction-id='" + key + "']").addClass('changed blink').fadeIn(100).fadeOut(100).fadeIn(100).fadeOut(100).fadeIn(100).fadeOut(100).fadeIn(100).fadeOut(100).fadeIn(100, function () {
+                            jQuery(this).removeClass('blink');
+                        });
+                    }
+
+                    if (typeof value.timer != 'undefined') {
+                        var curenttimer = jQuery("body").find(".auction-time-countdown[data-auctionid='" + key + "']");
+                        if (curenttimer.data('time') != value.timer) {
+                            curenttimer.data('time', value.timer);
+                            curenttimer.SAcountdown('option', 'until', jQuery.SAcountdown.UTCDate(-(new Date().getTimezoneOffset()), new Date(value.timer * 1000)));
+                            if (!first_bid) {
+                                curenttimer.addClass('changed blink').fadeIn(100).fadeOut(100).fadeIn(100).fadeOut(100).fadeIn(100).fadeOut(100).fadeIn(100).fadeOut(100).fadeIn(100, function () {
+                                    jQuery(this).removeClass('blink');
+                                });
+                            }
+                        }
+                    }
+                    if (typeof value.curent_bider != 'undefined') {
+                        var curentuser = jQuery("input[name=user_id]");
+                        var mainauction = jQuery("input[name=place-bid]").val();
+                        if (curentuser.length) {
+                            if (value.curent_bider != curentuser.val() && mainauction == key) {
+                                jQuery('.woocommerce-message').replaceWith(data.outbid_message);
+
+                            }
+                        }
+                        if (jQuery("span.winning[data-auction_id='" + key + "']").attr('data-user_id') != value.curent_bider) {
+                            jQuery("span.winning[data-auction_id='" + key + "']").remove()
+                        }
+
+
+                    }
+
+                    if (typeof value.bid_value != 'undefined') {
+                        if (!jQuery("input[name=bid_value][data-auction-id='" + key + "']").hasClass('changedin')) {
+                            jQuery("input[name=bid_value][data-auction-id='" + key + "']").val(value.bid_value).removeClass('changedin');
+                        }
+                    }
+
+                    if (typeof value.reserve != 'undefined') {
+
+                        jQuery(".auction-ajax-change .reserve[data-auction-id='" + key + "']").text(value.reserve);
+
+                    }
+
+                    if (typeof value.activity != 'undefined') {
+
+                        jQuery("#auction-history-table-" + key + " tbody > tr:first").before(value.activity);
+                        if (!first_bid) {
+                            jQuery("#auction-history-table-" + key + " tbody > tr:first").addClass('changed blink').fadeIn(100).fadeOut(100).fadeIn(100).fadeOut(100).fadeIn(100).fadeOut(100).fadeIn(100).fadeOut(100).fadeIn(100, function () {
+                                jQuery(this).removeClass('blink');
+
+                            });
+                        }
+                    }
+
+                    if (typeof value.add_to_cart_text != 'undefined') {
+
+                        jQuery("a.button.product_type_auction[data-product_id='" + key + "']").text(value.add_to_cart_text);
+
+                    }
+
+                    jQuery(document.body).trigger('sa-action-price-changed', [key, value]);
+
+                });
+            }
+            jQuery(document.body).trigger('sa-action-price-respons', response);
+            running = false;
+        },
+        error: function () {
+            running = false;
+        }
+    });
+
+}

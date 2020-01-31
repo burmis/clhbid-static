@@ -1,0 +1,382 @@
+jQuery(window).ready(function ($) {
+
+    var aj_data = {
+        'action': 'ca_sae_sync_date'
+    };
+    var abca_object = [];
+
+    setInterval(putListingPageTimersOnSync, 5 * 60 * 1000);
+
+    function putListingPageTimersOnSync() {
+
+//        jQuery.post(ajaxurl, aj_data, function (response) {
+//            abca_object.date = response;
+//            updateListingPageTimers();
+//            console.log("Server time: " + response)
+//            console.log("Local time: " + new Date())
+//        });
+        
+        xmlhttp = new XMLHttpRequest();
+        xmlhttp.open("HEAD", "//www.googleapis.com/?"+Date.now(),true);
+        console.log("Local time before call: " + new Date())
+        xmlhttp.onreadystatechange=function() {
+
+            if (xmlhttp.readyState==4) {
+                
+                var d = xmlhttp.getResponseHeader("Date")
+                
+                if(d){
+                    abca_object.date = d
+                }
+                console.log("Server time: " + d)
+                console.log("Local time: " + new Date())
+                
+                updateListingPageTimers();
+            }
+        }
+        xmlhttp.send(null);
+    }
+    
+    putListingPageTimersOnSync()
+
+    saajaxurl = SA_Ajax.ajaxurl;
+    var shouldRefresh = false;
+
+    $('.bid_button_disabled').each(function () {
+        $(this).prop('disabled', true);
+    });
+
+    var $inputs = $('input[name="bid_value"]');
+
+    $inputs.each(function () {
+
+        var bid_value = $(this);
+        bid_value.attr('min', bid_value.val());
+        bid_value.removeAttr('max');
+
+        $(this).parent().find('.bid_value_ui').each(function () {
+
+            var bid_value_ui = $(this);
+
+            bid_value_ui.on('keydown', function () {
+                return false;
+            });
+
+            bid_value_ui.val(addCommas(bid_value.val()));
+
+            bid_value_ui.on('change', function () {
+                var value = $(this).val();
+                bid_value.val(value.replace(/[^0-9.]/g, ""));
+
+                bid_value_ui.val(addCommas(bid_value.val()));
+            });
+
+            bid_value.on('change', function () {
+                bid_value_ui.val(addCommas(bid_value.val()));
+            });
+
+
+            $(this).watch('display style', function () {
+
+                var auction_id = bid_value.data('auction-id');
+
+                try {
+                    if (jc.isOpen()) {
+                        if (parseInt(auction_id) === parseInt(current_bid_modal)) {
+                            jc.setTitle('A new bid was placed');
+                            jc.setContent('Someone has placed a higher bid, please place a new bid.');
+                            jc.buttons.yes.disable();
+                            jc.buttons.yes.hide();
+                            jc.buttons.no.setText('Place a new bid');
+                            jc.highlight();
+                        }
+                    }
+                }
+                catch (e) {
+
+                }
+            });
+
+            jQuery(document.body).on('sa-action-price-changed', function (key, value) {
+
+                
+                if (window.undefined == this.waitlist) {
+                    this.waitlist = new Object();
+                }
+                
+
+                if ($.isNumeric(value)) {
+                    var data = {
+                        'action': 'ca_sae_get_auction_status',
+                        'auction_id': value,
+                        'frontend': true
+                    };
+
+                    if (this.waitlist.hasOwnProperty(value)) {
+                        return;
+                    }
+
+
+                    this.waitlist[value] = true;
+                    window.setTimeout(function () {
+                        delete this.waitlist[value];
+                    }.bind(this), 500);
+                    
+
+                    jQuery.post(ajaxurl, data, function (response) {
+                        response = JSON.parse(response);
+
+
+                        if (response.auction_started && !response.auction_finished) {
+
+                            var context = $("form[data-product_id='" + value + "']").parent();
+                            var bid_button = context.parent().find('.bid_button');
+
+                            $.each(response, function (index, value) {
+                                context.find('.auction-info').data(index, value);
+                            });
+
+                            updateTile('update_price', context.parent());
+
+                            //Removing the outbid back-end message
+                            context.find('.outbided').remove();
+                            context.find('.user-bidder').html('');
+
+                            if (response.user_is_bider && !response.current_bidder_max_bidder && !response.first_bid_required) {
+
+                                var user_bider_selector = context.find('.user-bidder');
+                                var outbid_message = '<span class="outbided">You have been outbid!</span>';
+
+                                user_bider_selector.html(outbid_message);
+
+                                updateTile('bid_changed', context.parent());
+                            }
+                            else if (response.user_is_bider && !response.current_bidder_max_bidder && response.first_bid_required) {
+
+                                updateTile('bid_changed', context.parent());
+                            }
+                            else if (!response.user_is_bider) {
+                                updateTile('bid_changed', context.parent());
+                            }
+                            if (!response.first_bid_required) {
+
+                                bid_button.text('Place Bid');
+                            }
+                            else {
+                                updateTile('first_bid', context.parent());
+                            }
+                        }
+                    });
+                }
+
+            });
+        });
+    });
+
+    closeAuctionTiles();
+
+    function addCommas(nStr) {
+        nStr += '';
+        x = nStr.split('.');
+        x1 = x[0];
+        x2 = x.length > 1 ? '.' + x[1] : '';
+        var rgx = /(\d+)(\d{3})/;
+        while (rgx.test(x1)) {
+            x1 = x1.replace(rgx, '$1' + ',' + '$2');
+        }
+        return x1 + x2;
+    }
+
+    function updateTile(type, element) {
+
+        switch (type) {
+            case 'first_bid':
+                var bid_value_ui = element.find('.bid_value_ui');
+                var plus_button = element.find('.plus');
+                var minus_button = element.find('.minus');
+                var bid_button = element.find('.bid_button');
+
+                //Disable price input
+                bid_value_ui.prop('disabled', true);
+
+                //Disable plus/minus buttons
+                plus_button.attr('disabled', true);
+                minus_button.attr('disabled', true);
+
+                //Disable Bid button
+                bid_button.prop('disabled', false);
+                bid_button.removeClass('bid_button_disabled');
+                bid_button.text('Place Starting Bid');
+
+                break;
+            case 'bid_changed':
+
+                var bid_value = element.find('input[name="bid_value"]');
+                var bid_value_ui = element.find('.bid_value_ui');
+                var plus_button = element.find('.plus');
+                var minus_button = element.find('.minus');
+                var bid_button = element.find('.bid_button');
+
+                //Enable price input
+                bid_value_ui.prop('disabled', false);
+                bid_value_ui.val(addCommas(bid_value.val()));
+
+                //Enable plus/minus buttons
+                plus_button.attr('disabled', false);
+                minus_button.attr('disabled', false);
+
+                //Enable Bid button
+                bid_button.prop('disabled', false);
+                bid_button.removeClass('bid_button_disabled');
+
+                break;
+            case 'update_price':
+
+                var bid_value = element.find('input[name="bid_value"]');
+
+                var bid_value_ui = element.find('.bid_value_ui');
+                var current_bid = element.find('.current-bid').data('bid');
+                var bid_increment = bid_value.prop('step');
+
+                var next_increment = parseInt(current_bid) + parseInt(bid_increment);
+
+                bid_value_ui.val(addCommas(next_increment));
+                bid_value.attr('value', next_increment);
+                bid_value.attr('min', next_increment);
+
+                break;
+            case 'auction_end':
+
+                var bid_form = element.parent().next();
+                var product_h = bid_form.parent();
+
+                //remove countdown
+                product_h.find('.timer-container').replaceWith('<div class="over">Auction has finished!</div>');
+
+                bid_form.hide();
+
+                var price_amount = product_h.find('.woocommerce-Price-amount').html();
+                var price = product_h.find('.price');
+                var outbided = product_h.find('.outbided');
+
+                price.html('<span class="winned-for auction closingbid">Final Bid:</span> <span class="woocommerce-Price-amount amount">' + price_amount + '</span>');
+                product_h.find('.winning').replaceWith('<a class="won_auction_text"><span class="winning won"><i class="fas fa-badge-check"></i> Highest Bidder!</span></a>');
+
+                outbided.hide();
+
+                break;
+            default:
+                break;
+        }
+
+    }
+
+    function closeAuctionTiles() {
+
+        var auctionid = jQuery(this).data('auctionid');
+        var future = jQuery(this).hasClass('future') ? 'true' : 'false';
+        var ajaxcontainer = jQuery(this).parent().next('.auction-ajax-change');
+
+
+        ajaxcontainer.empty().prepend('<div class="ajax-working"></div>');
+        ajaxcontainer.parent().children('form.buy-now').remove();
+
+        var ajaxurl = saajaxurl + '=finish_auction';
+
+
+        jQuery(document.body).trigger('sa-close-auction', [auctionid]);
+        request = jQuery.ajax({
+            type: "post",
+            url: ajaxurl,
+            cache: false,
+            data: {action: "finish_auction", post_id: auctionid, ret: ajaxcontainer.length, future: future},
+            success: function (response) {
+                if (response.length != 0) {
+                    ajaxcontainer.children('.ajax-working').remove();
+                    ajaxcontainer.prepend(response);
+                    jQuery(document.body).trigger('sa-action-closed', [auctionid]);
+                    if (future) {
+                        location.reload();
+//                        location.href = location.href;
+                    }
+                }
+
+            }
+        });
+
+        jQuery('.auction-time-countdown').each(function () {
+            if (jQuery(this).hasClass('future')) {
+                future = true;
+            }
+        });
+
+        if (shouldRefresh) {
+            // Refresh page when auction starts
+            if (future) {
+                setTimeout(function () {
+                    location.reload();
+//                    location.href = location.href;
+                }, 500);
+            }
+        }
+    }
+
+    function updateListingPageTimers() {
+
+        $(".auction-time-countdown").each(function (index) {
+
+            $(this).SAcountdown('destroy');
+
+            var time = $(this).data('time');
+            var format = $(this).data('format');
+
+            if (format == '') {
+                format = 'yowdHMS';
+            }
+            if (data.compact_counter == 'yes') {
+                compact = true;
+            } else {
+                compact = false;
+            }
+            var etext = '';
+            if ($(this).hasClass('future')) {
+                etext = '<div class="started">' + data.started + '</div>';
+            } else {
+                etext = '<div class="over">' + data.finished + '</div>';
+            }
+
+            $(this).SAcountdown({
+                until: $.SAcountdown.UTCDate(-(new Date().getTimezoneOffset()), new Date(time * 1000)),
+                format: format,
+                serverSync: function () {
+                    return new Date(abca_object.date)
+                },
+                compact: compact,
+
+                expiryText: etext,
+                onExpiry: function () {
+
+                    if ($(this).hasClass('future')) {
+                        shouldRefresh = true;
+                        bid_loader.open();
+
+                        bid_loader.buttons.yes.disable();
+                        bid_loader.buttons.yes.hide();
+                        bid_loader.buttons.no.disable();
+                        bid_loader.buttons.no.hide();
+
+                        bid_loader.setTitle('An auction is about to start');
+
+                        bid_loader.setContent('<div class=\'bid_loader\'></div></br>An auction is about to start. The page will refresh soon.');
+
+                    }
+                    else {
+                        $(this).parent().find('.time-left').remove();
+                    }
+                    updateTile('auction_end', $(this));
+                    closeAuctionTiles();
+                }
+            });
+        });
+    }
+});

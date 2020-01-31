@@ -1,0 +1,143 @@
+jQuery(window).ready(function ($) {
+
+    var bid_value = $('input[name="bid_value"]');
+    var bid_value_ui = $('#bid_value_ui');
+
+    bid_value_ui.val(addCommas(bid_value.val()));
+
+    bid_value.on('change', function () {
+        bid_value_ui.val(addCommas(bid_value.val()));
+    });
+
+
+    bid_value_ui.on('input', function () {
+
+        bid_value.val(bid_value_ui.val().replace(/[^0-9.]/g, ""));
+
+        // format number
+        bid_value_ui.val(function (index, value) {
+            // value = String(parseFloat(value));
+            return value
+                .replace(/\D/g, "")
+                .replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+                ;
+        });
+
+    });
+
+    bid_value_ui.on('keydown', function () {
+        return false;
+    });
+
+    bid_value_ui.watch('display style', function () {
+        try {
+            if (jc.isOpen()) {
+                jc.setTitle('A new bid was placed')
+                jc.setContent('Someone has placed a higher bid, please place a new bid.');
+                jc.buttons.yes.disable();
+                jc.buttons.yes.hide();
+                jc.buttons.no.setText('Place a new bid');
+                jc.highlight();
+            }
+        }
+        catch (e) {
+
+        }
+
+        var current_bid = $('.current-bid').data('bid');
+        var bid_increment = bid_value.prop('step');
+
+        var next_increment = parseInt(current_bid) + parseInt(bid_increment);
+
+        bid_value_ui.val(addCommas(next_increment));
+        bid_value.attr('value', next_increment);
+        bid_value.attr('min', next_increment);
+
+    });
+
+    jQuery(document.body).on('sa-action-price-changed', function (key, value) {
+
+        var auction_id = '';
+
+        if ($.isNumeric(value)) {
+            auction_id = value;
+
+            var data = {
+                'action': 'ca_sae_get_auction_status',
+                'auction_id': auction_id,
+                'frontend': true
+            };
+
+            // since 2.8 ajaxurl is always defined in the admin header and points to admin-ajax.php
+            jQuery.post(ajaxurl, data, function (response) {
+                response = JSON.parse(response);
+
+                var context = $("form[data-product_id='" + value + "']").parent();
+
+                if (response.user_is_bider && response.current_bidder_max_bidder) {
+                    $(document).find('.woocommerce-error').text('');
+
+                    var bid_value_ui = context.find('.bid_value_ui');
+                    var plus_button = context.find('.plus');
+                    var minus_button = context.find('.minus');
+                    var bid_button = context.parent().find('.bid_button');
+
+                    //Disable price input
+                    bid_value_ui.prop('disabled', true);
+
+                    //Disable plus/minus buttons
+                    plus_button.attr('disabled', true);
+                    minus_button.attr('disabled', true);
+
+                    //Disable Bid button
+                    bid_button.prop('disabled', true);
+                    bid_button.addClass('bid_button_disabled');
+                    bid_button.text('Place Bid');
+
+                }
+                else if (response.user_is_bider && !response.current_bidder_max_bidder) {
+                    if (auction_id == $('.main-auction').data('auctionid') && $('.bid-message .outbid').length==0){
+                        $('.price').find('.woocommerce-Price-amount').append('<span class="bid-message outbid">You have been outbid!</span>');
+                    }
+
+                    // $(document).find('.woocommerce-error').show();
+                    // $(document).find('.woocommerce-error').text('You have been outbid!');
+
+                    //
+                    // var user_bider_selector = context.find('.user-bidder');
+                    // var outbid_message = '<span class="outbided">You have been outbid!</span>';
+                    //
+                    // var outbid_container = '<span class="user-bidder" data-user_bidder="true"></span>' + outbid_message;
+                    // user_bider_selector.html(outbid_container);
+                    //
+                    // updateTile('bid_changed', context.parent());
+                }
+                else if (!response.user_is_bider) {
+                    // updateTile('bid_changed', context.parent());
+                }
+
+                if (response.auction_finished){
+                    $("#countdown").html('<div class="woocommerce-error">The auction has ended, please refresh your page.</div>')
+                    location.reload();
+                }
+
+
+            });
+        }
+
+    });
+
+});
+
+function addCommas(nStr) {
+    nStr += '';
+    x = nStr.split('.');
+    x1 = x[0];
+    x2 = x.length > 1 ? '.' + x[1] : '';
+    var rgx = /(\d+)(\d{3})/;
+    while (rgx.test(x1)) {
+        x1 = x1.replace(rgx, '$1' + ',' + '$2');
+    }
+    return x1 + x2;
+}
+

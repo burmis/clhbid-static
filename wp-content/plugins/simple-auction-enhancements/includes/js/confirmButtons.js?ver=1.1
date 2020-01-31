@@ -1,0 +1,80 @@
+var jc;
+
+jQuery(window).ready(function ($) {
+
+    $('.bid_button').on('click', function () {
+
+        let bid_id = jQuery('.main-auction').data('auctionid');
+        let bid_amount_ui  = jQuery('#bid_value_ui').val();
+        let bid_amount  = jQuery('input[name="bid_value"]').val();
+
+         jc = $.confirm({
+			useBootstrap: false,
+			boxWidth: '400px',
+            title: "Confirm Bid",
+            content: "Please confirm your bid for $" + bid_amount_ui,
+            icon: 'fa fa-check-circle',
+            theme: 'material',
+            closeIcon: true,
+            animation: 'scale',
+            type: 'orange',
+            backgroundDismiss: true,
+            buttons: {
+                yes: {
+					text: 'Place Bid',
+                    keys: ['y', 'enter'],
+					btnClass: 'btn-green',
+                    action: function () {
+                        bid_loader.open();
+
+                        bid_loader.buttons.yes.disable();
+                        bid_loader.buttons.yes.hide();
+                        bid_loader.buttons.no.disable();
+                        bid_loader.buttons.no.hide();
+
+                        // $('.auction_form').submit();
+                        // form_to_submit.submit();
+
+                        getPriceAuction();
+
+                        var data = {
+                            'action': 'ca_sae_place_bid',
+                            'bid_id': bid_id,
+                            'bid_amount' : bid_amount
+                        };
+
+                        // since 2.8 ajaxurl is always defined in the admin header and points to admin-ajax.php
+                        jQuery.post(ajaxurl, data, function(response) {
+                            // console.log('Got this from the server: ' + response);
+
+                            response = JSON.parse(response);
+
+                            if (!response.error) {
+                                 element = $("form[data-product_id='" + bid_id + "']").parent();
+
+                                if (response.current_bidder_max_bidder) {
+                                    $(document).find('.bid-message').remove();
+                                    //adding "You have the highest bid!"
+
+                                    // element.parent().find('.product-meta').prepend('<span class="winning" data-auction_id="' + bid_id + '" data-user_id="' + response.current_user + '">You have the highest bid!</span>');
+                                    // element.parent().find('.product-meta').find('.outbided').remove();
+
+
+                                }
+
+                            }
+                            bid_loader.close();
+                            jc.close();
+                        });
+                    }
+                },
+                no: {
+					text: 'Cancel',
+                    keys: ['N', 'esc'],
+                    action: function () {
+                    }
+                },
+            }
+        });
+    });
+});

@@ -1,0 +1,17 @@
+bid_loader = jQuery.confirm({
+    lazyOpen: true,
+    useBootstrap: false,
+    title: "Placing the bid...",
+    content: "<div class='bid_loader'></div></br>Please wait, we are placing your BID",
+    icon: 'fa fa-check-circle',
+    theme: 'supervan',
+    closeIcon: false,
+    backgroundDismiss: false,
+    buttons: {
+        yes: {
+        },
+        no: {
+
+        }
+    }
+});

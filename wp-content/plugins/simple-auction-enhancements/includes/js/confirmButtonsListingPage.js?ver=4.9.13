@@ -1,0 +1,101 @@
+let jc;
+let current_bid_modal;
+
+jQuery(window).ready(function ($) {
+
+    $('.bid_button').on('click', function (e) {
+        e.preventDefault();
+
+        let bid_amount = $(this).parent().find('input[name="bid_value"]').val();
+        let bid_amount_ui = $(this).parent().find('input[name="bid_value_ui"]').val();
+
+
+        let form_to_submit = $(this).parent();
+        current_bid_modal = $(this).parent().find('input[name="bid"]').val();
+
+        jc = $.confirm({
+            useBootstrap: false,
+            boxWidth: '400px',
+            title: "Confirm Bid",
+            content: "Please confirm your bid for $" + bid_amount_ui,
+            icon: 'fa fa-check-circle',
+            theme: 'material',
+            closeIcon: true,
+            animation: 'scale',
+            type: 'orange',
+            backgroundDismiss: true,
+            buttons: {
+                yes: {
+                    text: 'Place Bid',
+                    keys: ['y', 'enter'],
+                    btnClass: 'btn-green',
+                    action: function () {
+                        bid_loader.open();
+
+                        bid_loader.buttons.yes.disable();
+                        bid_loader.buttons.yes.hide();
+                        bid_loader.buttons.no.disable();
+                        bid_loader.buttons.no.hide();
+
+                        // form_to_submit.submit();
+                        getPriceAuction();
+
+                        var data = {
+                            'action': 'ca_sae_place_bid',
+                            'bid_id': current_bid_modal,
+                            'bid_amount': bid_amount
+                        };
+
+                        // since 2.8 ajaxurl is always defined in the admin header and points to admin-ajax.php
+                        jQuery.post(ajaxurl, data, function (response) {
+                            response = JSON.parse(response);
+
+                            if (!response.error) {
+                                let element = form_to_submit;
+
+                                $.each(response, function (index, value) {
+                                    element.parent().find('.auction-info').data(index, value);
+                                });
+
+
+                                if (response.current_bidder_max_bidder) {
+
+                                    //adding "You have the highest bid!"
+
+                                    element.parent().find('.product-meta').prepend('<span class="winning" data-auction_id="' + current_bid_modal + '" data-user_id="' + response.current_user + '">You have the highest bid!</span>');
+                                    element.parent().find('.product-meta').find('.outbided').remove();
+
+                                    var bid_value_ui = element.find('.bid_value_ui');
+                                    var plus_button = element.find('.plus');
+                                    var minus_button = element.find('.minus');
+                                    var bid_button = element.parent().find('.bid_button');
+
+                                    //Disable price input
+                                    bid_value_ui.prop('disabled', true);
+
+                                    //Disable plus/minus buttons
+                                    plus_button.attr('disabled', true);
+                                    minus_button.attr('disabled', true);
+
+                                    //Disable Bid button
+                                    bid_button.prop('disabled', true);
+                                    bid_button.addClass('bid_button_disabled');
+                                    bid_button.text('Place Bid');
+                                }
+                            }
+                            bid_loader.close();
+                            jc.close();
+                        });
+
+                    }
+                },
+                no: {
+                    text: 'Cancel',
+                    keys: ['N', 'esc'],
+                    action: function () {
+                    }
+                },
+            }
+        });
+    });
+});

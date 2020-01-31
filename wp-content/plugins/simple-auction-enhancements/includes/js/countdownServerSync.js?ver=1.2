@@ -1,0 +1,81 @@
+jQuery(document).ready(function ($) {
+
+    //Preparing sync request
+     let sync_object = {
+        'action': 'ca_sae_sync_date'
+    };
+
+     //Making the first Ajax request
+    jQuery.post(ajaxurl, sync_object, function (response) {
+        syncTimers(response);
+    });
+
+    setInterval(putSinglePageTimerOnSync, 5 * 60 * 1000);
+
+    function putSinglePageTimerOnSync(){
+        // since 2.8 ajaxurl is always defined in the admin header and points to admin-ajax.php
+//        jQuery.post(ajaxurl, sync_object, function (response) {
+//            syncTimers(response);
+//        });
+        
+        xmlhttp = new XMLHttpRequest();
+        xmlhttp.open("HEAD", "//www.googleapis.com/?"+Date.now(),true);
+        console.log("Local time before call: " + new Date())
+        xmlhttp.onreadystatechange=function() {
+
+            if (xmlhttp.readyState==4) {
+                
+                var d = xmlhttp.getResponseHeader("Date")
+                
+                if(d){
+                    syncTimers(d.toString());
+                }
+                console.log("Server time: " + d)
+                console.log("Local time: " + new Date())
+                
+            }
+        }
+        xmlhttp.send(null);
+    }
+    
+    putSinglePageTimerOnSync()
+    
+    function syncTimers(date){
+
+        $(".auction-time-countdown").each(function (index) {
+
+            $(this).SAcountdown('destroy');
+
+            var time = $(this).data('time');
+            var format = $(this).data('format');
+
+            if (format == '') {
+                format = 'yowdHMS';
+            }
+            if (data.compact_counter == 'yes') {
+                compact = true;
+            } else {
+                compact = false;
+            }
+            var etext = '';
+            if ($(this).hasClass('future')) {
+                var etext = '<div class="started">' + data.started + '</div>';
+            } else {
+                var etext = '<div class="over">' + data.finished + '</div>';
+            }
+
+            $(this).SAcountdown({
+                until: $.SAcountdown.UTCDate(-(new Date().getTimezoneOffset()), new Date(time * 1000)),
+                format: format,
+                serverSync: function () {
+                    return new Date(date)
+                },
+                compact: compact,
+
+                onExpiry: closeAuction,
+                expiryText: etext
+            });
+
+        });
+    }
+});
